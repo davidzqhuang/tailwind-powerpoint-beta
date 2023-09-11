@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <!-- pptxgenjs -->
+    <script src="https://cdn.jsdelivr.net/gh/gitbrent/pptxgenjs@3.12.0/libs/jszip.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/gitbrent/pptxgenjs@3.12.0/dist/pptxgen.min.js"></script>
+    <title>Tailwind Powerpoint</title>
+    <style>
+        .iframe-container {
+            position: relative;
+            overflow: hidden;
+            width: 1280px;
+            /* You may change this based on your design */
+            height: 720px;
+            /* You may change this based on your design */
+        }
+
+        .iframe-container iframe {
+            position: absolute;
+            top: 0;
+            left: 0;
+            transform: scale(1);
+            /* Adjust this value */
+            transform-origin: top left;
+            width: 1280px;
+            /* Adjust this based on the scale */
+            height: 720px;
+            /* Adjust this based on the scale */
+            border: 0;
+        }
+    </style>
+</head>
+
+<body class="bg-gray-100 flex flex-col m-8 space-y-8 overflow-x-auto overflow-y-auto">
+    <h1 class="text-lg">Tailwind Powerpoint</h1>
+
+    <!-- SLIDES START -->
+    <div class="iframe-container">
+        <iframe src="slide_template.html" scrolling="no"></iframe>
+    </div>
+
+    <!-- SLIDES END -->
+
+    <button class="bg-green-400 border border-green-600" style="width: 640px">Export</button>
+
+
+    <script>
+        function rgbToHex(rgb) {
+            // Handle transparent
+            console.log(rgb);
+            if (rgb === 'transparent' || rgb.startsWith('rgba') && parseFloat(rgb.split(',')[3]) === 0) {
+                return null;
+            }
+
+            // Check if the color is 'rgba' (with transparency)
+            if (rgb.startsWith('rgba')) {
+                rgb = rgb.match(/^rgba\((\d+),\s*(\d+),\s*(\d+),\s*[\d.]+\)$/);
+                if (!rgb) return "FFFFFF";  // Return default white if not matched
+            } else {
+                rgb = rgb.match(/^rgb\((\d+),\s*(\d+),\s*(\d+)\)$/);
+                if (!rgb) return "FFFFFF";  // Return default white if not matched
+            }
+
+            function pad(hex) {
+                return (hex.length === 1 ? "0" + hex : hex);
+            }
+
+            let r = parseInt(rgb[1], 10).toString(16);
+            let g = parseInt(rgb[2], 10).toString(16);
+            let b = parseInt(rgb[3], 10).toString(16);
+
+            return pad(r) + pad(g) + pad(b);
+        }
+        
+        function parseBoxShadow(boxShadow) {
+            // Handle keyword values
+            if (['none', 'inherit', 'initial', 'revert', 'revert-layer', 'unset'].includes(boxShadow)) {
+                return null;
+            }
+            console.log("PARSE BOX SHADOW", boxShadow)
+            let shadows = boxShadow.split('px,').map(s => s.trim());
+            console.log(shadows)
+
+            for (let shadow of shadows) {
+                let inset = false;
+                let color = "";
+                let numbers = [];
+
+                // Check for inset
+                if (shadow.includes('inset')) {
+                    inset = true;
+                    shadow = shadow.replace('inset', '').trim();
+                }
+
+                // Extract color
+                const colorMatch = shadow.match(/(rgba?\([^)]+\)|#[0-9a-fA-F]+|[a-zA-Z]+)/);
+                if (colorMatch) {
+                    color = colorMatch[1];
+                    shadow = shadow.replace(color, '').trim();
+                }
+
+                // Extract numbers
+                numbers = shadow.split(' ').map(num => parseFloat(num.split('px')[0].trim()));
+
+                parsed = {
+                    type: inset ? 'inset' : 'outer',
+                    offsetX: numbers[0] || 0,
+                    offsetY: numbers[1] || 0,
+                    blurRadius: numbers[2] || 0,
+                    spreadRadius: numbers[3] || 0,
+                    color: color
+                };
+                console.log("PARSED", parsed)
+
+                // Only proceed if either offsetX or offsetY is non-zero
+                if (parsed.offsetX !== 0 || parsed.offsetY !== 0) {
+                    function colorToOpacity (color) {
+                        if (color.startsWith('rgba')) {
+                            return parseFloat(color.split(',')[3].slice(0, -1));
+                        } else {
+                            return 0.3;
+                        }
+                    }
+
+                    let angle = Math.atan2(parsed.offsetY, parsed.offsetX) * (180 / Math.PI);
+                    // Convert to Pptxgenjs format
+                    let shadowOpts =  {
+                        type: parsed.type,
+                        angle: angle,
+                        blur: parsed.blur || 0,
+                        color: parsed.color,
+                        offset: Math.sqrt(Math.pow(parsed.offsetX, 2) + Math.pow(parsed.offsetY, 2)),
+                        opacity: colorToOpacity(parsed.color)
+                    };
+                    
+                    return {
+                        type: 'outer',
+                        angle: angle,
+                        blur: parsed.blur || 0,
+                        // convert color to hex
+                        color: parsed.color.startsWith('rgba') ? rgbToHex(parsed.color).slice(1) : parsed.color,
+                        offset: 0,
+                        opacity: 0.3
+                    }
+                }
+            }
+            return null;
+        }
+
+        // Create a variable at a higher scope
+        let pptx;
+        let iframes = document.querySelectorAll('iframe');
+        let slides_data = Array.from(iframes).map(iframe => {
+            return null
+        });
+
+        document.querySelector('button').addEventListener('click', function () {
+
+
+            // Instantiate the PowerPoint here
+            pptx = new PptxGenJS();
+
+            // Send a message to each iframe
+            iframes.forEach(iframe => {
+                iframe.contentWindow.postMessage("requestContent", "*");
+            });
+        });
+
+
+        // Listen for messages from iframes
+        window.addEventListener('message', function (event) {
+            // Check for a specific message type for security
+            slides_data[event.data.slideNum - 1] = event.data.content;
+            if (slides_data.every(slide => slide !== null)) {
+                // Create the slides
+                slides_data.forEach(elements => {
+                    let slide = pptx.addSlide();
+
+                    // Loop over the content received and add them to the slide
+                    elements.forEach(item => {
+
+                        let generalOpts = {
+                            x: item.x * 10 / 1280,
+                            y: item.y * 5.63 / 720,
+                            w: item.width * 10 / 1280,
+                            h: item.height * 5.63 / 720,
+                        };
+
+                        if (item.line) {
+                            generalOpts.line = item.line;
+                        }
+
+                        switch (item.tagName) {
+                            case 'H1' || 'H2' || 'H3' || 'H4' || 'H5' || 'H6':
+                                let h1Opts = {
+                                    ...generalOpts,
+                                    fontSize: 9 * item.fontSize / 16,
+                                    color: item.color,
+                                    fontFace: "Arial"
+                                };
+                                slide.addText(item.textContent.replace(/\s*\n\s*/g, ' '), h1Opts);
+                                break;
+
+                            case 'P':
+                                let pOpts = {
+                                    ...generalOpts,
+                                    fontSize: 9 * item.fontSize / 16,
+                                    color: item.color,
+                                    fontFace: "Arial"
+                                };
+                                slide.addText(item.textContent.replace(/\s*\n\s*/g, ' '), pOpts);
+                                break;
+
+                            case 'DIV':
+                                let divOpts = {
+                                    ...generalOpts,
+                                    color: item.color,
+                                    fill: item.bgColor
+                                };
+
+                                if (item.boxShadow) {
+                                    divOpts.shadow = parseBoxShadow(item.boxShadow);
+                                }
+
+                                if (item.rounding) {
+                                    divOpts.shape = pptx.shapes.ROUNDED_RECTANGLE;
+                                    divOpts.rectRadius = parseFloat(item.rounding.slice(0, -2)) * 10 / 1280;
+                                }
+                                console.log("DIV OPTS", divOpts)
+                                slide.addText(item.textContent, divOpts);
+                                break;
+
+                            case 'IMG':
+                                let imgOpts = {
+                                    ...generalOpts
+                                };
+                                slide.addImage({ path: item.src, x: imgOpts.x, y: imgOpts.y, w: item.width * 10 / 1280, h: item.height * 5.63 / 720 });
+                                break;
+
+                        }
+                    });
+
+                });
+
+                // Export the PowerPoint
+                pptx.writeFile({ fileName: 'presentation.pptx' });
+            }
+        });
+
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Slide Content</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <style>
+        body {
+            margin: 0;
+        }
+
+        .slide {
+            width: 1280px;
+            height: 720px;
+            background-color: white;
+        }
+    </style>
+</head>
+
+<body>
+
+
+    <div class="slide bg-white">
+        <!-- SLIDE CONTENT START -->
+        <div class="p-8 bg-gray-100 rounded-md shadow-lg shadow-teal-600">
+            <h1 class="text-3xl mb-6 font-semibold text-gray-900">Hello, Tailwind!</h1>
+            <p class="text-2xl mb-6 font-medium text-indigo-700">I'm big!</h2>
+            
+            <div class="flex flAex-row space-x-4 mt-4">
+                <div class="w-1/3 p-4 bg-indigo-500 text-white rounded-lg shadow-md flex items-center justify-center">Alpha</div>
+                <div class="w-1/3 p-4 bg-indigo-400 text-white rounded-lg shadow-md flex items-center justify-center">Beta</div>
+                <div class="w-1/3 p-4 bg-indigo-300 rounded-lg shadow-xl shadow-teal-600 flex items-center justify-center">
+                    <img src="graph.png" alt="graph" class="w-full h-full object-cover rounded-md">
+                </div>
+            </div>
+        </div>
+        
+        <!-- SLIDE CONTENT END -->
+
+        <script>
+
+            function rgbToHex(rgb) {
+                // Handle transparent
+                console.log(rgb);
+                if (rgb === 'transparent' || rgb.startsWith('rgba') && parseFloat(rgb.split(',')[3]) === 0) {
+                    return null;
+                }
+
+                // Check if the color is 'rgba' (with transparency)
+                if (rgb.startsWith('rgba')) {
+                    rgb = rgb.match(/^rgba\((\d+),\s*(\d+),\s*(\d+),\s*[\d.]+\)$/);
+                    if (!rgb) return "FFFFFF";  // Return default white if not matched
+                } else {
+                    rgb = rgb.match(/^rgb\((\d+),\s*(\d+),\s*(\d+)\)$/);
+                    if (!rgb) return "FFFFFF";  // Return default white if not matched
+                }
+
+                function pad(hex) {
+                    return (hex.length === 1 ? "0" + hex : hex);
+                }
+
+                let r = parseInt(rgb[1], 10).toString(16);
+                let g = parseInt(rgb[2], 10).toString(16);
+                let b = parseInt(rgb[3], 10).toString(16);
+
+                return pad(r) + pad(g) + pad(b);
+            }
+
+            function getBase64FromImage(img, callback) {
+                let reader = new FileReader();
+                reader.onload = function (e) {
+                    callback(e.target.result);
+                }
+                reader.readAsDataURL(img);
+            }
+
+            window.addEventListener('message', function (event) {
+                if (event.data === "requestContent") {
+
+                    let elementsWithinSlide = document.querySelectorAll(".slide *");
+                    let coordinates = [];
+
+                    elementsWithinSlide.forEach(element => {
+                        let rect = element.getBoundingClientRect();
+                        let computedStyle = getComputedStyle(element);
+                        let bgColorValue = rgbToHex(computedStyle.backgroundColor);
+                        let borderColorValue = rgbToHex(computedStyle.borderColor);
+                        let borderWidth = parseInt(computedStyle.borderWidth);
+                        let boxShadow = computedStyle.boxShadow;
+                        let borderRadius = computedStyle.borderRadius;
+
+                        let coordinate = {
+                            tagName: element.tagName,
+                            className: element.className,
+                            x: rect.left,
+                            y: rect.top,
+                            width: rect.width,
+                            height: rect.height,
+                            color: rgbToHex(computedStyle.color),
+                            fontSize: parseInt(computedStyle.fontSize),
+                        };
+                        
+                        if (borderColorValue && borderWidth) {
+                            coordinate.line = {
+                                color: borderColorValue,
+                                width: borderWidth
+                            }
+                        }
+
+                        if (bgColorValue) {
+                            coordinate.bgColor = bgColorValue;
+                        }
+                        if (element.tagName[0] === 'H' || element.tagName === 'P') {
+                            coordinate.textContent = element.textContent;
+                        }
+
+                        if (element.tagName === 'DIV') {
+                            let textOnlyContent = Array.from(element.childNodes)
+                                .filter(child => child.nodeType === 3)
+                                .map(textNode => textNode.textContent.trim())
+                                .join(" ").trim();
+
+                            if (textOnlyContent) {
+                                coordinate.textContent = textOnlyContent;
+                            }
+                        }
+
+                        if (boxShadow !== 'none') {
+                            coordinate.boxShadow = boxShadow;
+                        }
+                        if (borderRadius !== '0px') {
+                            coordinate.rounding = borderRadius;
+                        }
+
+                        // Handle image elements
+                        if (element.tagName === 'IMG') {
+                            coordinate.src = element.src;
+                            coordinate.alt = element.alt;
+                        }
+
+                        coordinates.push(coordinate);
+                    });
+
+                    event.source.postMessage({ type: 'iframeContent', slideNum: 1, content: coordinates }, "*");
+                }
+            });
+
+        </script>
+</body>
+
+</html>
